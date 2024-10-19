@@ -1,0 +1,13 @@
+sudo apt-get update
+sudo apt install realvnc-vnc-server realvnc-vnc-viewer
+sudo raspi-config
+sudo apt-get install -y python3-pip
+pip3 install flask==2.0.1
+pip3 install flask-socketio==5.1.1
+pip3 install eventlet==0.31.0
+pip3 install numpy==1.21.0
+pip3 install opencv-python==4.5.3.56
+pip3 install pykinect2==0.9.3
+
+crontab -e
+@reboot /usr/bin/python3 /home/pi/Desktop/sever.py

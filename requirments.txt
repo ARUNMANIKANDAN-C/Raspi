@@ -1,0 +1,7 @@
+flask==2.0.1
+flask-socketio==5.1.1
+eventlet==0.31.0
+numpy==1.21.0
+opencv-python==4.5.3.56
+pykinect2==0.9.3
+
