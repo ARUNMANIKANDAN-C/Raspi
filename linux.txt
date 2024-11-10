@@ -11,3 +11,11 @@ pip3 install pykinect2==0.9.3
 
 crontab -e
 @reboot /usr/bin/python3 /home/pi/Desktop/sever.py
+
+echo "# Raspi" >> README.md
+git init
+git add README.md
+git commit -m "first commit"
+git branch -M main
+git remote add origin https://github.com/ARUNMANIKANDAN-C/Raspi.git
+git push -u origin main
