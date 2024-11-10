@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Video Feed</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.min.js"></script>
+</head>
+<body>
+    <h1>Live Video Feed</h1>
+    
+    <!-- Display two views, one for the main stream and one for the continuous frame update -->
+    <div>
+        <h2>Main Stream</h2>
+        <img id="video-stream" alt="Video Stream" style="width: 100%; max-width: 640px; height: auto;"/>
+    </div>
+    <div style="margin-top: 20px;">
+        <h2>Captured Frame View</h2>
+        <img id="captured-frame" alt="Captured Frame" style="width: 100%; max-width: 640px; height: auto;"/>
+    </div>
+
+    <script>
+        // Connect to the Socket.IO server
+        const socket = io();
+
+        // Listen for new frames from the server
+        socket.on('new_frame', function(data) {
+            // Update both image tags with the new frame
+            const liveStreamImg = document.getElementById('video-stream');
+            const capturedFrameImg = document.getElementById('captured-frame');
+            const frameData = 'data:image/jpeg;base64,' + data.frame;
+
+            // Set the source of both images to the latest frame
+            liveStreamImg.src = frameData;
+            capturedFrameImg.src = frameData;
+        });
+    </script>
+</body>
+</html>
