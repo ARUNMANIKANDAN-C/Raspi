@@ -1,49 +1,35 @@
-from flask import Flask, render_template, Response, send_file
+from flask import Flask, Response, send_file
+from picamera2 import Picamera2
 import cv2
 import io
 
 app = Flask(__name__)
 
-# Initialize the camera
-camera = cv2.VideoCapture(0)  # Use 0 for the default camera
+# Initialize and configure the camera
+camera = Picamera2()
+camera.configure(camera.create_preview_configuration(main={"format": 'XRGB8888', "size": (640, 480)}))
+camera.start()
 
 def generate_frames():
     while True:
-        # Capture frame-by-frame
-        success, frame = camera.read()
-        if not success:
-            break
-        else:
-            # Encode the frame in JPEG format
-            ret, buffer = cv2.imencode('.jpg', frame)
-            frame = buffer.tobytes()
-
-            # Yield the frame in byte format
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-
-@app.route('/')
-def index():
-    # Display the streaming webpage
-    return render_template('index.html')
+        frame = camera.capture_array()
+        ret, buffer = cv2.imencode('.jpg', frame)
+        frame = buffer.tobytes()
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
 
 @app.route('/video_feed')
 def video_feed():
-    # Video streaming route
-    return Response(generate_frames(),
-                    mimetype='multipart/x-mixed-replace; boundary=frame')
+    # Continuous video streaming route
+    return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @app.route('/get_frame')
 def get_frame():
-    # Capture a single frame
-    success, frame = camera.read()
-    if not success:
-        return "Could not capture a frame", 500
-    
-    # Encode the frame as JPEG
+    # Capture a single frame for GET request
+    frame = camera.capture_array()
     ret, buffer = cv2.imencode('.jpg', frame)
     if not ret:
-        return "Could not encode the frame", 500
+        return "Could not encode frame", 500
     
     # Convert to bytes and send as response
     frame_bytes = io.BytesIO(buffer)
