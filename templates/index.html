@@ -29,10 +29,11 @@
     <!-- Include Socket.IO client library -->
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
     <script>
-        // Connect to the Socket.IO server
-        var socket = io.connect('http://' + document.domain + ':' + location.port);
+        // Connect to the Socket.IO server with WebSocket transport only
+        var socket = io.connect('http://' + document.domain + ':' + location.port, {
+            transports: ['websocket']
+        });
 
-        // Listen for messages from the server
         socket.on('message', function(data) {
             console.log(data.data);
         });
