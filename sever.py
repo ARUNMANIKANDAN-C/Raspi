@@ -1,13 +1,8 @@
-from flask import Flask, render_template, Response, jsonify, send_file
-from flask_socketio import SocketIO, emit
+from flask import Flask, render_template, Response, send_file
 import cv2
-import base64
 import io
-import time
-from PIL import Image
 
 app = Flask(__name__)
-socketio = SocketIO(app)  # Initialize SocketIO with Flask
 
 # Initialize the camera
 camera = cv2.VideoCapture(0)  # Use 0 for the default camera
@@ -23,16 +18,9 @@ def generate_frames():
             ret, buffer = cv2.imencode('.jpg', frame)
             frame = buffer.tobytes()
 
-            # Emit the frame to the client in base64 format
-            frame_base64 = base64.b64encode(buffer).decode('utf-8')
-            socketio.emit('new_frame', {'frame': frame_base64})
-
-            # Yield the frame in byte format for the video stream
+            # Yield the frame in byte format
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-            
-            # Optional: add delay for demonstration
-            time.sleep(0.1)  # Add a short delay if needed for performance
 
 @app.route('/')
 def index():
@@ -41,24 +29,26 @@ def index():
 
 @app.route('/video_feed')
 def video_feed():
-    # Video streaming route for compatibility with <img> tags if needed
+    # Video streaming route
     return Response(generate_frames(),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
-@app.route('/get_frame', methods=['GET'])
+@app.route('/get_frame')
 def get_frame():
     # Capture a single frame
     success, frame = camera.read()
-    if success:
-        # Convert the frame to JPEG
-        _, buffer = cv2.imencode('.jpg', frame)
-        frame_io = io.BytesIO(buffer)
-
-        # Send the frame as a downloadable image
-        return send_file(frame_io, mimetype='image/jpeg', as_attachment=True, download_name='frame.jpg')
-    else:
-        return "Failed to capture frame", 500
+    if not success:
+        return "Could not capture a frame", 500
+    
+    # Encode the frame as JPEG
+    ret, buffer = cv2.imencode('.jpg', frame)
+    if not ret:
+        return "Could not encode the frame", 500
+    
+    # Convert to bytes and send as response
+    frame_bytes = io.BytesIO(buffer)
+    return send_file(frame_bytes, mimetype='image/jpeg', as_attachment=False)
 
 if __name__ == '__main__':
-    # Run the app with SocketIO support
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+    # Run the app on 0.0.0.0 to make it available on your local network
+    app.run(host='0.0.0.0', port=5000, debug=True)
