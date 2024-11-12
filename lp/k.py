@@ -1,7 +1,7 @@
 from flask import Flask, render_template, Response
 import cv2
 
-app = Flask(_name_)
+app = Flask(__name__)
 
 # Initialize the camera
 camera = cv2.VideoCapture(0)  # Use 0 for the default camera
@@ -32,6 +32,6 @@ def video_feed():
     return Response(generate_frames(),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
-if _name_ == '_main_':
+if __name__ == '__main__':
     # Run the app on 0.0.0.0 to make it available on your local network
     app.run(host='0.0.0.0', port=5000, debug=True)
