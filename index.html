@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>WebSocket Video Stream</title>
+</head>
+<body>
+  <h1>Live Stream from Raspberry Pi Camera</h1>
+  <img id="video-stream" alt="Video stream will appear here." />
+
+  <script>
+    const videoElement = document.getElementById("video-stream");
+    const ws = new WebSocket("ws://127.0.0.1:8765");
+
+    ws.onmessage = function(event) {
+      // Set the image source as a data URL with base64 encoding
+      videoElement.src = "data:image/jpeg;base64," + event.data;
+    };
+
+    ws.onopen = () => console.log("WebSocket connection opened");
+    ws.onclose = () => console.log("WebSocket connection closed");
+  </script>
+</body>
+</html>

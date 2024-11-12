@@ -1,54 +1,34 @@
-from flask import Flask, render_template, Response, send_file
+from flask import Flask, render_template
+from flask_socketio import SocketIO, emit
 import cv2
-import io
+import base64
 
 app = Flask(__name__)
+socketio = SocketIO(app)
 
-# Initialize the camera
-camera = cv2.VideoCapture(0)  # Use 0 for the default camera
-
-def generate_frames():
-    while True:
-        # Capture frame-by-frame
-        success, frame = camera.read()
-        if not success:
-            break
-        else:
-            # Encode the frame in JPEG format
-            ret, buffer = cv2.imencode('.jpg', frame)
-            frame = buffer.tobytes()
-
-            # Yield the frame in byte format
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+# Video capture (0 is typically the default camera, or you can specify a video file path)
+camera = cv2.VideoCapture(0)
 
 @app.route('/')
 def index():
-    # Display the streaming webpage
     return render_template('index.html')
 
-@app.route('/video_feed')
-def video_feed():
-    # Video streaming route
-    return Response(generate_frames(),
-                    mimetype='multipart/x-mixed-replace; boundary=frame')
+def generate_frames():
+    while True:
+        success, frame = camera.read()
+        if not success:
+            break
 
-@app.route('/get_frame')
-def get_frame():
-    # Capture a single frame
-    success, frame = camera.read()
-    if not success:
-        return "Could not capture a frame", 500
-    
-    # Encode the frame as JPEG
-    ret, buffer = cv2.imencode('.jpg', frame)
-    if not ret:
-        return "Could not encode the frame", 500
-    
-    # Convert to bytes and send as response
-    frame_bytes = io.BytesIO(buffer)
-    return send_file(frame_bytes, mimetype='image/jpeg', as_attachment=False)
+        # Encode the frame to JPEG
+        _, buffer = cv2.imencode('.jpg', frame)
+        frame_data = base64.b64encode(buffer).decode('utf-8')
+        
+        # Emit the frame over WebSocket
+        socketio.emit('video_feed', {'frame': frame_data})
+
+@socketio.on('connect')
+def connect():
+    socketio.start_background_task(generate_frames)
 
 if __name__ == '__main__':
-    # Run the app on 0.0.0.0 to make it available on your local network
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
