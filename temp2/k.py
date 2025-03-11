@@ -48,13 +48,15 @@ def video_feed():
 def command():
     data = request.json
     cmd_type = data.get('type')
+    
     if cmd_type == 'move':
-        cmd = data.get('cmd', 'S')
+        cmd = data.get('cmd', 'S')  # Send e.g., "F:150"
     elif cmd_type == 'servo':
         angle = int(data.get('angle', 90))
-        cmd = f"V:{angle}"
+        cmd = f"SERVO:{angle}"      # Fixed: correct format
     else:
         cmd = "S"
+
     result = send_command(cmd)
     return jsonify(status=result)
 
@@ -121,6 +123,7 @@ HTML_PAGE = """
     <h3>Servo Angle</h3>
     <input type="range" min="0" max="180" value="90" id="servoSlider" oninput="updateServo(this.value)">
     <p>Angle: <span id="servoValue">90</span>°</p>
+    <button onclick="sendCmd('SWEEP')">Sweep Servo</button>
   </div>
 
   <h3>Live Camera Feed</h3>

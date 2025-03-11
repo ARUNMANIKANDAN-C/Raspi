@@ -7,21 +7,17 @@ AF_DCMotor motor3(3);  // Right Bottom
 AF_DCMotor motor4(4);  // Right Top
 
 Servo myservo;
-int pos = 0;
 String inputString = "";
 
 void setup() {
   Serial.begin(9600);
-  motor1.setSpeed(180);
-  motor2.setSpeed(180);
-  motor3.setSpeed(180);
-  motor4.setSpeed(180);
-  myservo.attach(10); // SERVO_2 on pin 10
+  setSpeed(180);
+  myservo.attach(10);  // Servo on pin 10
   Serial.println("Arduino Ready");
 }
 
 void loop() {
-  // Nothing needed here. Commands handled in serialEvent.
+  // Commands handled asynchronously via serialEvent
 }
 
 void serialEvent() {
@@ -38,56 +34,70 @@ void serialEvent() {
 
 void handleCommand(String cmd) {
   cmd.trim();
-  if (cmd == "F") {
-    moveForward();
-    Serial.println("Moving Forward");
-  } else if (cmd == "B") {
-    moveBackward();
-    Serial.println("Moving Backward");
-  } else if (cmd == "L") {
-    turnLeft();
-    Serial.println("Turning Left");
-  } else if (cmd == "R") {
-    turnRight();
-    Serial.println("Turning Right");
-  } else if (cmd == "S") {
+  int sepIndex = cmd.indexOf(':');
+  String action = (sepIndex != -1) ? cmd.substring(0, sepIndex) : cmd;
+  int value = (sepIndex != -1) ? cmd.substring(sepIndex + 1).toInt() : -1;
+
+  if (action == "F") {
+    if (value >= 0) setSpeed(value);
+    moveAll(FORWARD);
+    Serial.println("Moving Forward at speed " + String(value));
+  } 
+  else if (action == "B") {
+    if (value >= 0) setSpeed(value);
+    moveAll(BACKWARD);
+    Serial.println("Moving Backward at speed " + String(value));
+  } 
+  else if (action == "L") {
+    if (value >= 0) setSpeed(value);
+    motor1.run(BACKWARD);
+    motor2.run(BACKWARD);
+    motor3.run(FORWARD);
+    motor4.run(FORWARD);
+    Serial.println("Turning Left at speed " + String(value));
+  } 
+  else if (action == "R") {
+    if (value >= 0) setSpeed(value);
+    motor1.run(FORWARD);
+    motor2.run(FORWARD);
+    motor3.run(BACKWARD);
+    motor4.run(BACKWARD);
+    Serial.println("Turning Right at speed " + String(value));
+  } 
+  else if (action == "S") {
     stopMotors();
     Serial.println("Stopped");
-  } else if (cmd == "SWEEP") {
+  } 
+  else if (action == "SERVO") {
+    if (value >= 0 && value <= 180) {
+      myservo.write(value);
+      Serial.println("Servo set to " + String(value) + "°");
+    } else {
+      Serial.println("Invalid Servo Angle");
+    }
+  } 
+  else if (action == "SWEEP") {
     sweepServo();
     Serial.println("Servo Sweeping");
-  } else {
-    Serial.println("Unknown Command");
+  } 
+  else {
+    Serial.println("Unknown Command: " + cmd);
   }
 }
 
-// === Movement Functions ===
-void moveForward() {
-  motor1.run(FORWARD);
-  motor2.run(FORWARD);
-  motor3.run(FORWARD);
-  motor4.run(FORWARD);
+void setSpeed(int spd) {
+  spd = constrain(spd, 0, 255);
+  motor1.setSpeed(spd);
+  motor2.setSpeed(spd);
+  motor3.setSpeed(spd);
+  motor4.setSpeed(spd);
 }
 
-void moveBackward() {
-  motor1.run(BACKWARD);
-  motor2.run(BACKWARD);
-  motor3.run(BACKWARD);
-  motor4.run(BACKWARD);
-}
-
-void turnLeft() {
-  motor1.run(BACKWARD);
-  motor2.run(BACKWARD);
-  motor3.run(FORWARD);
-  motor4.run(FORWARD);
-}
-
-void turnRight() {
-  motor1.run(FORWARD);
-  motor2.run(FORWARD);
-  motor3.run(BACKWARD);
-  motor4.run(BACKWARD);
+void moveAll(uint8_t direction) {
+  motor1.run(direction);
+  motor2.run(direction);
+  motor3.run(direction);
+  motor4.run(direction);
 }
 
 void stopMotors() {
@@ -98,11 +108,11 @@ void stopMotors() {
 }
 
 void sweepServo() {
-  for (pos = 0; pos <= 180; pos++) {
+  for (int pos = 0; pos <= 180; pos++) {
     myservo.write(pos);
     delay(10);
   }
-  for (pos = 180; pos >= 0; pos--) {
+  for (int pos = 180; pos >= 0; pos--) {
     myservo.write(pos);
     delay(10);
   }
