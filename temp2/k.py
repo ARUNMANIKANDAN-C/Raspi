@@ -2,7 +2,6 @@ from flask import Flask, render_template_string, Response, request, jsonify
 import cv2
 import serial
 import time
-import threading
 
 app = Flask(__name__)
 
@@ -43,27 +42,17 @@ def index():
 
 @app.route('/video_feed')
 def video_feed():
-    return Response(generate_frames(),
-                    mimetype='multipart/x-mixed-replace; boundary=frame')
+    return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
-@app.route('/joystick', methods=['POST'])
-def joystick():
+@app.route('/command', methods=['POST'])
+def command():
     data = request.json
-    control_type = data.get('control')  # "move" or "servo"
-    if control_type == "move":
-        direction = data.get('direction')
-        speed = data.get('speed', 150)
-        cmd_map = {
-            "UP": f"F:{speed}",
-            "DOWN": f"B:{speed}",
-            "LEFT": f"L:{speed}",
-            "RIGHT": f"R:{speed}",
-            "STOP": "S"
-        }
-        cmd = cmd_map.get(direction, "S")
-    elif control_type == "servo":
+    cmd_type = data.get('type')
+    if cmd_type == 'move':
+        cmd = data.get('cmd', 'S')
+    elif cmd_type == 'servo':
         angle = int(data.get('angle', 90))
-        cmd = f"V:{angle}"  # Servo control
+        cmd = f"V:{angle}"
     else:
         cmd = "S"
     result = send_command(cmd)
@@ -78,109 +67,82 @@ HTML_PAGE = """
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Rocky Bridge Dual Joystick Control</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/nipplejs/0.9.0/nipplejs.min.js"></script>
+  <title>Rocky Bridge Control</title>
   <style>
-    body { font-family: Arial; background: #f2f2f2; text-align: center; padding: 20px; }
-    #status-bar {
-      background: #333; color: white; padding: 10px;
-      font-size: 18px; margin-bottom: 20px;
+    body { font-family: Arial; text-align: center; background: #f9f9f9; }
+    h2 { margin-top: 20px; }
+    button {
+      padding: 12px 24px;
+      margin: 8px;
+      font-size: 18px;
+      background-color: #4285f4;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
     }
-    .layout {
-      display: flex; flex-wrap: wrap; justify-content: center;
-      gap: 20px;
-    }
-    .zone {
-      width: 200px; height: 200px; background: #ddd;
-      border-radius: 15px; display: flex; align-items: center; justify-content: center;
-    }
-    .label { margin-top: 10px; font-size: 16px; }
+    button:hover { background-color: #3367d6; }
     #camera {
-      border: 5px solid #444; border-radius: 10px;
-      width: 400px; height: auto;
+      margin-top: 30px;
+      width: 400px;
+      border: 4px solid #444;
+      border-radius: 10px;
+    }
+    #status-bar {
+      background: #222;
+      color: white;
+      padding: 10px;
+      font-size: 18px;
+    }
+    #servo-container {
+      margin-top: 30px;
+    }
+    input[type=range] {
+      width: 300px;
     }
   </style>
 </head>
 <body>
+
   <div id="status-bar">
     Arduino Status: <span id="arduino-status">Checking...</span>
   </div>
 
-  <h2>Rocky Bridge Control Panel</h2>
-
-  <div class="layout">
-    <div>
-      <div class="zone" id="move-joystick"></div>
-      <div class="label">Movement</div>
-    </div>
-    <div>
-      <div class="zone" id="servo-joystick"></div>
-      <div class="label">Servo</div>
-    </div>
+  <h2>Rocky Bridge Movement Control</h2>
+  <div>
+    <button onclick="sendCmd('F:150')">Forward</button><br>
+    <button onclick="sendCmd('L:150')">Left</button>
+    <button onclick="sendCmd('S')">Stop</button>
+    <button onclick="sendCmd('R:150')">Right</button><br>
+    <button onclick="sendCmd('B:150')">Backward</button>
   </div>
 
-  <h3 style="margin-top: 40px;">Live Camera Feed</h3>
+  <div id="servo-container">
+    <h3>Servo Angle</h3>
+    <input type="range" min="0" max="180" value="90" id="servoSlider" oninput="updateServo(this.value)">
+    <p>Angle: <span id="servoValue">90</span>°</p>
+  </div>
+
+  <h3>Live Camera Feed</h3>
   <img src="/video_feed" id="camera">
 
   <script>
-    const moveJoy = nipplejs.create({
-      zone: document.getElementById('move-joystick'),
-      mode: 'static',
-      position: { left: '50%', top: '50%' },
-      color: 'blue'
-    });
-
-    const servoJoy = nipplejs.create({
-      zone: document.getElementById('servo-joystick'),
-      mode: 'static',
-      position: { left: '50%', top: '50%' },
-      color: 'green'
-    });
-
-    let lastMoveDir = "";
-    let lastServoAngle = 90;
-    let stopTimer = null;
-
-    function sendJoystickCommand(control, payload) {
-      fetch('/joystick', {
+    function sendCmd(cmd) {
+      fetch('/command', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ control, ...payload })
+        body: JSON.stringify({ type: 'move', cmd })
       });
     }
 
-    function angleToSpeed(distance) {
-      let speed = Math.min(255, Math.floor(distance * 3));  // scale up
-      return speed < 100 ? 100 : speed;
+    function updateServo(val) {
+      document.getElementById('servoValue').innerText = val;
+      fetch('/command', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'servo', angle: parseInt(val) })
+      });
     }
-
-    moveJoy.on('move', function (_, data) {
-      const dir = data.direction ? data.direction.angle.toUpperCase() : "STOP";
-      const speed = angleToSpeed(data.distance);
-      if (dir !== lastMoveDir) {
-        sendJoystickCommand("move", { direction: dir, speed });
-        lastMoveDir = dir;
-      }
-      if (stopTimer) clearTimeout(stopTimer);
-      stopTimer = setTimeout(() => {
-        sendJoystickCommand("move", { direction: "STOP" });
-        lastMoveDir = "";
-      }, 1000);
-    });
-
-    moveJoy.on('end', function () {
-      sendJoystickCommand("move", { direction: "STOP" });
-      lastMoveDir = "";
-    });
-
-    servoJoy.on('move', function (_, data) {
-      let angle = Math.floor((data.angle.degree + 360) % 360);
-      let mapped = Math.floor(angle / 2); // map 0–360 to 0–180
-      if (Math.abs(mapped - lastServoAngle) >= 3) {
-        sendJoystickCommand("servo", { angle: mapped });
-        lastServoAngle = mapped;
-      }
-    });
 
     function updateStatus() {
       fetch('/status').then(res => res.json()).then(data => {
@@ -202,6 +164,6 @@ HTML_PAGE = """
 </html>
 """
 
-# === Start the Server ===
+# === Run the Flask App ===
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    app.run(host='0.0.0.0', port=5000)
